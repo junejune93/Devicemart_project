@@ -1,12 +1,11 @@
-﻿using namespace std;
-// jetson -> arduino : 1 2 3 4 수신받은 메세지
+﻿// jetson -> arduino : 1 2 3 4 수신받은 메세지
 // arduino -> jetson : A B C D 송신하는 메세지
 
 #include <Servo.h> // 서보모터
 #include <SoftwareSerial.h> // 시리얼 통신
 
-// 기본 설정
-Servo fishDivider_ServoA; // A ~ D분류 서보모터
+// 핀 설정
+Servo fishDivider_ServoA; // A ~ C분류 서보모터
 Servo fishDivider_ServoB;
 Servo fishDivider_ServoC;
 
@@ -15,33 +14,60 @@ const int LED_B = 5;
 const int LED_C = 6;
 const int LED_D = 7; // Red
 
-const int fishDivider_numA = 8; // A ~ D 분류 모터
+const int fishDivider_numA = 8; // A ~ C 분류 모터
 const int fishDivider_numB = 9;
 const int fishDivider_numC = 10;
-const int fishDivider_numD = 11;
 
-const int servoResetSW = 13; // 서보모터 reset 버튼
+const int resetSW_PIN = 13; // 서보모터 reset 버튼
 
+// 논리 변수
 bool detectValue = 0; // 최초로 컨베이어 벨트의 물고기 감지
 bool objectDetect = 1;
 const int detectPhotoSensor = 0; // 최초의 물고기 인식 광센서
+int lazer_count = 0; // 불완전한 레이저 작동 오류를 방지하기 위한 카운트
 
 bool divide_state = 0; // 메인에서 분리 State ON/OFF
-int count = 0; // Timer Delay
+int count = 0; // LED Timer Delay
+int main_state = 1; // 메인 함수 switch문 작동
 
-char recMsg[10] = ""; // 받은 문자열 임시 저장공간
-char* nuid[2] = {}; // 받은 값 임시 저장공간
+// 물고기 감지 시간 설정 관련 타이머 변수
+unsigned long currentTime = 0;
+unsigned long stateChangeStartTime = 0;
+const unsigned long undetectedTime = 3000; // n초간 물체 미감지시 작동
+
+// 데이터 저장 공간
 char fishDivide = {}; // 물고기 분류값
 char jetsonSend = {}; // 젯슨에서 보낸 메세지
 
 // 최초로 컨베이어 벨트의 물고기 감지
 void firstDetect() {
     int firstPhotoSensor = analogRead(detectPhotoSensor); // 물체 인식 센서 작동
-    if (firstPhotoSensor > 250) {
+    if (firstPhotoSensor > 150) {
         detectValue = 0;
     }
-    else if (firstPhotoSensor <= 250) {
+    else if (firstPhotoSensor <= 150) {
         detectValue = 1;
+    }
+}
+
+void divide(bool divide_state) { // 물고기 분류 시작 - 종료 - Jetson으로 결과 송신
+    if (divide_state == 1) {
+        if (fishDivide == '1') { // 1번 모터 작동
+            fishDivider_ServoA.write(135); // 통로로 물고기가 들어가게 모터 작동
+            photoState(1);
+        }
+        else if (fishDivide == '2') {
+            fishDivider_ServoB.write(135);
+            photoState(2);
+        }
+        else if (fishDivide == '3') {
+            fishDivider_ServoC.write(135);
+            photoState(3);
+        }
+        else if (fishDivide == '4') {
+            photoState(4);
+        }
+        divide_state = 0; // 분류 완료
     }
 }
 
@@ -49,10 +75,18 @@ void firstDetect() {
 int photoState(int photoSensorNum) {
     while (1) {
         int photoValue = analogRead(photoSensorNum);  // photoSensorNum : 1 ~ 4 = A1 ~ A4
-        if (photoValue < 250) {
-            break;
+        if (photoValue < 150) {
+            break; // 물고기 감지시 while문 탈출
         }
-        else continue;
+        else {
+            currentTime = millis(); // 현재 시간 실시간 갱신
+            if (currentTime - stateChangeStartTime >= undetectedTime) { // 설정한 시간이 지났을때 실행
+                stateChangeStartTime = currentTime; // 변경 시간 갱신
+                main_state = 2; // 메인 함수 변경
+                break;
+            }
+            continue;
+        }
     }
 
     char countResult = {}; // 아두이노에서 젯슨으로 카운트 결과 송신
@@ -81,12 +115,10 @@ int photoState(int photoSensorNum) {
     count = 0; // LED를 Off하기 위한 초기화 변수
 }
 
-void LED_Off() { // LED 모두 Off하는 함수
-    if (count == 15000) {
-        digitalWrite(LED_A, LOW);
-        digitalWrite(LED_B, LOW);
-        digitalWrite(LED_C, LOW);
-        digitalWrite(LED_D, LOW);
+void LEDdelay_Off() { // LED 모두 Off하는 함수
+    if (count == 20000) {
+        digitalWrite(LED_A, LOW); digitalWrite(LED_B, LOW);
+        digitalWrite(LED_C, LOW); digitalWrite(LED_D, LOW);
     }
     count++;
 }
@@ -97,55 +129,56 @@ void setup() {
     fishDivider_ServoA.attach(fishDivider_numA); // 모터 A ~ C 세팅
     fishDivider_ServoB.attach(fishDivider_numB);
     fishDivider_ServoC.attach(fishDivider_numC);
-    pinMode(LED_A, OUTPUT); // LED A ~ D 세팅
-    pinMode(LED_B, OUTPUT);
-    pinMode(LED_C, OUTPUT);
-    pinMode(LED_D, OUTPUT);
+    pinMode(LED_A, OUTPUT); pinMode(LED_B, OUTPUT); // LED A ~ D 세팅
+    pinMode(LED_C, OUTPUT); pinMode(LED_D, OUTPUT);
+    pinMode(resetSW_PIN, INPUT);
 }
 
 // 메인 함수
 void loop() {
-    
-    firstDetect(); // 최초로 컨베이어 벨트의 물고기 감지
+    switch (main_state){
+    case 1:
+        firstDetect(); // 최초로 컨베이어 벨트의 물고기 감지
 
-    if ((detectValue == 1) && (objectDetect == 1)) { // 물체 감지시 jetson으로 메세지 송신
-        Serial.print('S'); // 최초에 물고기 감지시 'S'를 jetson으로 송신
-        objectDetect = 0;
-        delayMicroseconds(1);
-    }
-    else if ((detectValue == 0) && (objectDetect == 0)) {
-        objectDetect = 1;
-        return;
-    }
-
-    if (Serial.available()) { // 통신이 확인 되었을때 시행
-        fishDivide = Serial.read();
-        divide_state = 1;
-    }
-    else {
-        divide_state = 0;
-    }
-
-    if (divide_state == 1) { // 물고기 분류 모터 작동
-        if (fishDivide == '1') { // Serial.println("1번 모터 작동");
-            fishDivider_ServoA.write(135); // 통로로 물고기가 들어가게 모터 작동
-            photoState(1);
-            
+        if ((detectValue == 1) && (objectDetect == 1)) { // 물체 감지시 jetson으로 메세지 송신
+            Serial.print('S'); // 최초에 물고기 감지시 'S'를 jetson으로 송신
+            objectDetect = 0;
+            //delay(300);
         }
-        else if (fishDivide == '2') { // Serial.println("2번 모터 작동");
-            fishDivider_ServoB.write(135);
-            photoState(2);
+        else if ((detectValue == 0) && (objectDetect == 0) && (lazer_count > 100)) {
+            objectDetect = 1;
+            lazer_count = 0;
+            return;
         }
-        else if (fishDivide == '3') { // Serial.println("3번 모터 작동");
-            fishDivider_ServoC.write(135);
-            photoState(3);
+
+        if (Serial.available()) { // 통신이 확인 되었을때 시행
+            fishDivide = Serial.read();
+            stateChangeStartTime = millis(); // 데이터 입력된 시간 설정
+            divide_state = 1;
         }
-        else if (fishDivide == '4') { // Serial.println("4번 예외 처리 가동");
-            photoState(4);
+        else {
+            divide_state = 0;
         }
-        divide_state = 0; // 분류 완료
+
+        divide(divide_state); // 물고기 분류 시작 - 종료 - Jetson으로 결과 송신
+        LEDdelay_Off(); // LED A ~ D Off
+        lazer_count++;
+        break;
+
+    case 2: // 물고기가 일정 시간동안 감지가 안되었을 경우 LED ON-OFF 반복
+        digitalWrite(LED_A, HIGH); digitalWrite(LED_B, HIGH);
+        digitalWrite(LED_C, HIGH); digitalWrite(LED_D, HIGH);
+        delay(100);
+        digitalWrite(LED_A, LOW); digitalWrite(LED_B, LOW);
+        digitalWrite(LED_C, LOW); digitalWrite(LED_D, LOW);
+        delay(100);
+        if (digitalRead(resetSW_PIN)) { // 스위치를 누르면 해제
+            digitalWrite(LED_A, LOW); digitalWrite(LED_B, LOW);
+            digitalWrite(LED_C, LOW); digitalWrite(LED_D, LOW);
+            fishDivider_ServoA.write(90);
+            fishDivider_ServoB.write(90);
+            fishDivider_ServoC.write(90);
+            main_state = 1;
+        }
     }
-
-    LED_Off(); // LED A ~ D Off
-
 }
