@@ -21,6 +21,7 @@ const int fishDivider_numC = 10;
 const int resetSW_PIN = 13; // 서보모터 reset 버튼
 
 // 논리 변수
+int photoThreshold = 100; // 광센서 threshold
 bool detectValue = 0; // 최초로 컨베이어 벨트의 물고기 감지
 bool objectDetect = 1;
 const int detectPhotoSensor = 0; // 최초의 물고기 인식 광센서
@@ -30,10 +31,10 @@ bool divide_state = 0; // 메인에서 분리 State ON/OFF
 int count = 0; // LED Timer Delay
 int main_state = 1; // 메인 함수 switch문 작동
 
-// 물고기 감지 시간 설정 관련 타이머 변수
+// 물고기 감지 설정 관련 타이머 변수
 unsigned long currentTime = 0;
 unsigned long stateChangeStartTime = 0;
-const unsigned long undetectedTime = 3000; // n초간 물체 미감지시 작동
+const unsigned long undetectedTime = 20000; // 20초간 물체 미감지시 작동
 
 // 데이터 저장 공간
 char fishDivide = {}; // 물고기 분류값
@@ -42,10 +43,10 @@ char jetsonSend = {}; // 젯슨에서 보낸 메세지
 // 최초로 컨베이어 벨트의 물고기 감지
 void firstDetect() {
     int firstPhotoSensor = analogRead(detectPhotoSensor); // 물체 인식 센서 작동
-    if (firstPhotoSensor > 150) {
+    if (firstPhotoSensor > photoThreshold) {
         detectValue = 0;
     }
-    else if (firstPhotoSensor <= 150) {
+    else if (firstPhotoSensor <= photoThreshold) {
         detectValue = 1;
     }
 }
@@ -75,7 +76,7 @@ void divide(bool divide_state) { // 물고기 분류 시작 - 종료 - Jetson으
 int photoState(int photoSensorNum) {
     while (1) {
         int photoValue = analogRead(photoSensorNum);  // photoSensorNum : 1 ~ 4 = A1 ~ A4
-        if (photoValue < 150) {
+        if (photoValue < photoThreshold) {
             break; // 물고기 감지시 while문 탈출
         }
         else {
@@ -88,8 +89,6 @@ int photoState(int photoSensorNum) {
             continue;
         }
     }
-
-    char countResult = {}; // 아두이노에서 젯슨으로 카운트 결과 송신
 
     if (photoSensorNum == 1) { // 1번 수조 카운트
         fishDivider_ServoA.write(90); // 문 닫기
@@ -172,7 +171,7 @@ void loop() {
         digitalWrite(LED_A, LOW); digitalWrite(LED_B, LOW);
         digitalWrite(LED_C, LOW); digitalWrite(LED_D, LOW);
         delay(100);
-        if (digitalRead(resetSW_PIN)) { // 스위치를 누르면 해제
+        if (digitalRead(resetSW_PIN)) { // 스위치를 누르면 해제 및 초기화
             digitalWrite(LED_A, LOW); digitalWrite(LED_B, LOW);
             digitalWrite(LED_C, LOW); digitalWrite(LED_D, LOW);
             fishDivider_ServoA.write(90);
