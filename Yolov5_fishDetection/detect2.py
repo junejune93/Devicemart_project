@@ -1,4 +1,5 @@
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+#python detect2.py --weights best2.pt --source 0
 
 import argparse
 import os
@@ -27,9 +28,8 @@ import socket
 HOST = '10.10.141.220'
 PORT = 5000
 
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)# 소켓 객체를 생성합니다.
-
-client_socket.connect((HOST, PORT))# 지정한 HOST와 PORT를 사용하여 서버에 접속
+#client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)# 소켓 객체를 생성합니다.
+#client_socket.connect((HOST, PORT))# 지정한 HOST와 PORT를 사용하여 서버에 접속
 
 # 시리얼 포트와 baud rate 지정
 ser = serial.Serial('COM4', 9600) # 나는 dev/ttyACM0 였음
@@ -42,8 +42,8 @@ def run(
         source=ROOT / 'data/images',  # file/dir/URL/glob/screen/0(webcam)
         data=ROOT / 'data/coco128.yaml',  # dataset.yaml path
         imgsz=(640, 640),  # inference size (height, width)
-        conf_thres=0.25,  # confidence threshold
-        iou_thres=0.45,  # NMS IOU threshold
+        conf_thres=0.8,  # confidence threshold
+        iou_thres=0.8,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         view_img=False,  # show results
@@ -52,7 +52,7 @@ def run(
         save_crop=False,  # save cropped prediction boxes
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
-        agnostic_nms=False,  # class-agnostic NMS
+        agnostic_nms=False,  # class-agnostic NMS0
         augment=False,  # augmented inference
         visualize=False,  # visualize features
         update=False,  # update all models
@@ -98,8 +98,8 @@ def run(
 
     for path, im, im0s, vid_cap, s in dataset:
 
-        if ser.in_waiting > 0:# 만약 아두이노에서 값이 들어 왔다면
-            read_adu = ser.read()# read_adu에 값 저장
+        if ser.in_waiting > 0:  # 만약 아두이노에서 값이 들어 왔다면
+            read_adu = ser.read()  # read_adu에 값 저장
 
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -134,41 +134,24 @@ def run(
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                         annotator.box_label(xyxy, label, color=colors(c, True))
 
-                        if read_adu == b'S':  # read_adu가 'W' 라면
-
-                            if names[int(cls)] == "person":  # 테스트용 조건문
-                                ser.write(b'1')  # 아두이노로 1' 보냄
-                                print("person")
-                            elif names[int(cls)] == "Pterophyllum":
-                                ser.write(b'1')
-                                print("Pterophyllum")
-                            elif names[int(cls)] == "Arapaima gigas":
-                                ser.write(b'2')
-                                print("Arapaima gigas")
-                            elif names[int(cls)] == "ikan-mas":
-                                ser.write(b'3')
-                                print("ikan-mas")
-                            else:
-                                ser.write(b'0')
-                                print("no detect")
-                            print(read_adu)
-                            read_adu = '0'  # read_adu를 0으로 초기화하여 한번만 인식 하도록 함
-
-                        elif read_adu == b'A':  # read_adu가 'A' 라면
-                            # 라즈베리로 보낼때 사용할 함수 위치
-                            print("ex) Raspberry : 1++")  # 테스트 프린트
-                            client_socket.send(b'1')
-                            read_adu = '0'  # read_adu를 0으로 초기화하여 한번만 인식 하도록 함
-                        elif read_adu == b'B':
-                            # 라즈베리로 보낼때 사용할 함수 위치
-                            print("ex) Raspberry : 2++")
-                            client_socket.send(b'2')
-                            read_adu = '0'
-                        elif read_adu == b'C':
-                            # 라즈베리로 보낼때 사용할 함수 위치
-                            print("ex) Raspberry : 3++")
-                            client_socket.send(b'3')
-                            read_adu = '0'
+                    if read_adu == b'S':  # read_adu가 'S' 라면
+                        if names[int(cls)] == "person":  # 테스트용 조건문
+                            ser.write(b'1')  # 아두이노로 1' 보냄
+                            print("person")
+                        elif names[int(cls)] == "Pterophyllum":
+                            ser.write(b'1')
+                            print("Pterophyllum")
+                        elif names[int(cls)] == "Arapaima gigas":
+                            ser.write(b'2')
+                            print("Arapaima gigas")
+                        elif names[int(cls)] == "ikan-mas":
+                            ser.write(b'3')
+                            print("ikan-mas")
+                        else:
+                            ser.write(b'0')
+                            print("no detect")
+                        print(read_adu)
+                        read_adu = '0'  # read_adu를 0으로 초기화하여 한번만 인식 하도록 함
 
             # 화면 보여줌
             im0 = annotator.result()
@@ -180,7 +163,22 @@ def run(
                 cv2.imshow(str(p), im0)
                 cv2.waitKey(1)  # 1 millisecond
 
-
+        if read_adu == b'A':  # read_adu가 'A' 라면
+            print("ex) Raspberry : 1++")  # 테스트 프린트
+            #client_socket.send(b'1')# RaspBerry로 데이터 전송
+            read_adu = '0'  # read_adu를 0으로 초기화하여 한번만 인식 하도록 함
+        elif read_adu == b'B':
+            print("ex) Raspberry : 2++")
+            #client_socket.send(b'2')
+            read_adu = '0'
+        elif read_adu == b'C':
+            print("ex) Raspberry : 3++")
+            #client_socket.send(b'3')
+            read_adu = '0'
+        elif read_adu == b'D':
+            print("ex) Raspberry : 4++")
+            # client_socket.send(b'4')
+            read_adu = '0'
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -188,7 +186,7 @@ def parse_opt():
     parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.85, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
