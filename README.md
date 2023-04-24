@@ -129,6 +129,7 @@ Open CV를 활용한 치어(larval fish) 분류
     
     Google Colab
     Roboflow
+    Pytorch
 
 ## 개발 일지
 
