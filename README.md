@@ -13,8 +13,8 @@
 
 |  | 이  름 | 담당 파트 |
 | --- | --- | --- |
-| 팀장 | 김윤희 | Jetson-Raspberry Socket 통신, Jetson Building, YoloV5 Sub, Maria DB 설정, GitHub 관리 |
-| 팀원 | 허준 | Arudino Main, Anaconda3 Building, YoloV5 Sub, Arduino-Jetson 통신, Notion 관리, GitHub 관리 |
+| 팀장 | 허준 | Arudino Main, Anaconda3 Building, YoloV5 Sub, Arduino-Jetson 통신, Notion 관리, GitHub 관리 |
+| 팀원 | 김윤희 | Jetson-Raspberry Socket 통신, Jetson Building, YoloV5 Sub, Maria DB 설정, GitHub 관리 |
 | 팀원 | 김승환 | Machine Learning Main, Data Labeling, Qt5 Sub |
 | 팀원 | 박선규 | Qt5 Main, Data Labeling, Machine Learning Sub |
 | 팀원 | 유다원 | YoloV5 Main, Jetson Building, Arduino-Jetson 통신, 3D Printing, 작품 외관 설계 및 구현 |
